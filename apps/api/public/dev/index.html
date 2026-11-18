@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test temps réel — plan du car</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 420px;
+        margin: 16px auto;
+        padding: 0 16px;
+      }
+      header {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #status {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #fde68a;
+      }
+      #status.on {
+        background: #bbf7d0;
+      }
+      #grid {
+        display: grid;
+        gap: 6px;
+        margin: 16px 0;
+      }
+      .seat {
+        height: 44px;
+        border: 2px solid #888;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .free {
+        background: #fff;
+      }
+      .mine {
+        background: #2563eb;
+        color: #fff;
+        border-color: #1e40af;
+      }
+      .other {
+        background: #fbbf24;
+        border-style: dashed;
+        cursor: not-allowed;
+      }
+      .sold {
+        background: #9ca3af;
+        color: #fff;
+        cursor: not-allowed;
+        text-decoration: line-through;
+      }
+      .aisle {
+        visibility: hidden;
+      }
+      #log {
+        font: 12px monospace;
+        white-space: pre-wrap;
+        background: #f3f4f6;
+        padding: 8px;
+        min-height: 80px;
+      }
+      small {
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Plan du car (test)</h1>
+    <p>
+      <small>
+        Page de développement de l'étape 3. Ouvre-la dans deux onglets : chacun crée son propre
+        voyageur. Bleu = bloquée par moi · Jaune hachuré = bloquée par un autre · Gris = vendue.
+      </small>
+    </p>
+    <header>
+      <strong id="who">…</strong>
+      <span id="status">hors ligne</span>
+    </header>
+    <p id="trip">Chargement du trajet…</p>
+    <div id="grid"></div>
+    <div id="log"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

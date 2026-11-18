@@ -4,6 +4,12 @@ import { healthResponseSchema } from '@billetterie/shared';
 import { buildTestApp } from './helpers';
 
 describe('GET /api/v1/health', () => {
+  it('vérifie par défaut les vrais PostgreSQL et Redis', async () => {
+    const res = await request(buildTestApp()).get('/api/v1/health').expect(200);
+
+    expect(res.body).toEqual({ status: 'ok', checks: { postgres: 'up', redis: 'up' } });
+  });
+
   it('répond 200 quand toutes les dépendances répondent', async () => {
     const app = buildTestApp({
       healthChecks: { postgres: async () => 1, redis: async () => 'PONG' },

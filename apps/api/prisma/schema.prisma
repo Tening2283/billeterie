@@ -1,0 +1,121 @@
+// Seul ce qui est définitif vit ici. Les places bloquées (temporaires) sont dans Redis.
+// Règles : argent en entiers (FCFA), dates en timestamptz (UTC).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  traveler
+  controller
+  admin
+}
+
+enum TripStatus {
+  scheduled
+  cancelled
+}
+
+enum BookingStatus {
+  confirmed
+  cancelled
+}
+
+enum TicketStatus {
+  valid
+  used
+  cancelled
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         Role      @default(traveler)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  bookings     Booking[]
+
+  @@map("users")
+}
+
+model Route {
+  id          String @id @default(uuid()) @db.Uuid
+  origin      String
+  destination String
+  trips       Trip[]
+
+  @@unique([origin, destination])
+  @@map("routes")
+}
+
+model Bus {
+  id        String @id @default(uuid()) @db.Uuid
+  name      String @unique
+  /// CHECK (seat_count > 0), ajouté à la main dans la migration.
+  seatCount Int    @map("seat_count")
+  /// { rows, columns, aisleAfter } : voir BusLayout dans @billetterie/shared.
+  layout    Json
+  trips     Trip[]
+
+  @@map("buses")
+}
+
+model Trip {
+  id          String     @id @default(uuid()) @db.Uuid
+  routeId     String     @map("route_id") @db.Uuid
+  busId       String     @map("bus_id") @db.Uuid
+  departureAt DateTime   @map("departure_at") @db.Timestamptz(3)
+  /// CHECK (price_fcfa >= 0), ajouté à la main dans la migration.
+  priceFcfa   Int        @map("price_fcfa")
+  status      TripStatus @default(scheduled)
+  route       Route      @relation(fields: [routeId], references: [id])
+  bus         Bus        @relation(fields: [busId], references: [id])
+  bookings    Booking[]
+  tickets     Ticket[]
+
+  // Unique (et pas seulement indexé) : sert la recherche et rend la création des départs idempotente.
+  @@unique([routeId, departureAt])
+  @@map("trips")
+}
+
+model Booking {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  tripId         String        @map("trip_id") @db.Uuid
+  status         BookingStatus @default(confirmed)
+  totalFcfa      Int           @map("total_fcfa")
+  idempotencyKey String        @map("idempotency_key")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  user           User          @relation(fields: [userId], references: [id])
+  trip           Trip          @relation(fields: [tripId], references: [id])
+  tickets        Ticket[]
+
+  // Une clé d'idempotence identifie une tentative de réservation d'un utilisateur donné.
+  // Sert aussi d'index pour « mes réservations » (user_id en tête).
+  @@unique([userId, idempotencyKey])
+  @@map("bookings")
+}
+
+model Ticket {
+  id            String       @id @default(uuid()) @db.Uuid
+  bookingId     String       @map("booking_id") @db.Uuid
+  /// Répété depuis bookings : l'index unique partiel anti double vente en a besoin.
+  tripId        String       @map("trip_id") @db.Uuid
+  seatNumber    Int          @map("seat_number")
+  passengerName String       @map("passenger_name")
+  status        TicketStatus @default(valid)
+  usedAt        DateTime?    @map("used_at") @db.Timestamptz(3)
+  booking       Booking      @relation(fields: [bookingId], references: [id])
+  trip          Trip         @relation(fields: [tripId], references: [id])
+
+  // + index unique partiel tickets_one_active_per_seat (trip_id, seat_number) WHERE status <> 'cancelled',
+  //   écrit à la main dans la migration : Prisma ne sait pas le déclarer.
+  @@index([bookingId])
+  @@map("tickets")
+}

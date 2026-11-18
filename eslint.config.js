@@ -5,12 +5,16 @@ import globals from 'globals';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'] },
+  { ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', 'apps/api/src/generated/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     files: ['apps/api/**/*.ts', 'packages/shared/**/*.ts'],
     languageOptions: { globals: globals.node },
+  },
+  {
+    files: ['apps/api/public/**/*.js'],
+    languageOptions: { globals: globals.browser, sourceType: 'script' },
   },
   {
     files: ['apps/web/**/*.{ts,tsx}'],

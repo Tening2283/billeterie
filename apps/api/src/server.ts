@@ -1,26 +1,61 @@
-import { createServer } from 'node:http';
 import { createApp } from './app';
 import { loadEnv } from './config/env';
+import { loadEnvFile } from './config/load-env-file';
+import { createDb } from './lib/db';
 import { createLogger } from './lib/logger';
+import { createRedis } from './lib/redis';
+import { attachSockets, createSocketServer } from './realtime/socket';
+import { createSocketSeatEvents } from './realtime/seat-events';
+import { createSweeper } from './services/sweeper';
+import { ensureUpcomingTrips } from './demo/ensure-upcoming-trips';
 
-try {
-  process.loadEnvFile();
-} catch {
-  // Pas de fichier .env (production) : les variables viennent de l'hébergeur.
-}
+// En local : lit apps/api/.env. En production : les variables viennent de l'hébergeur.
+loadEnvFile('.env');
 
 const env = loadEnv();
 const logger = createLogger(env.LOG_LEVEL);
-const app = createApp({ logger, corsOrigins: env.CORS_ORIGINS });
-const server = createServer(app);
+const db = createDb(env.DATABASE_URL);
+const redis = createRedis(env.REDIS_URL, env.REDIS_KEY_PREFIX);
+redis.on('error', (err) => logger.error({ err }, 'Erreur Redis'));
+
+const io = createSocketServer(env.CORS_ORIGINS);
+const events = createSocketSeatEvents(io);
+const sweeper = createSweeper({ redis, events, logger });
+
+const app = createApp({
+  logger,
+  corsOrigins: env.CORS_ORIGINS,
+  db,
+  redis,
+  events,
+  jwtSecret: env.JWT_SECRET,
+  ticketSecret: env.TICKET_SECRET,
+  bcryptCost: env.BCRYPT_COST,
+  holdTtlMs: env.HOLD_TTL_MS,
+  onHoldCreated: (expiresAtMs) => sweeper.notifyHold(expiresAtMs),
+  // Activation explicite (NODE_ENV=development écrit dans .env) : loadEnv met « development » par
+  // défaut, donc un déploiement qui oublierait NODE_ENV exposerait /dev/ si on se fiait à env.NODE_ENV.
+  devPage: process.env.NODE_ENV === 'development',
+});
+// Express et Socket.io partagent le même serveur HTTP, donc le même port.
+const server = attachSockets(app, io);
 
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'API démarrée');
+  sweeper.start();
 });
+
+// La démo doit toujours proposer des départs à venir, même après des semaines sans redéploiement.
+ensureUpcomingTrips(db)
+  .then((created) => logger.info({ created }, 'Départs à venir vérifiés'))
+  .catch((err: unknown) => logger.error({ err }, 'Impossible de créer les départs à venir'));
 
 function shutdown(signal: string): void {
   logger.info({ signal }, 'Arrêt en cours');
-  server.close(() => process.exit(0));
+  sweeper.stop();
+  void io.close(() => {
+    void Promise.allSettled([db.$disconnect(), redis.quit()]).finally(() => process.exit(0));
+  });
   setTimeout(() => process.exit(1), 10_000).unref();
 }
 

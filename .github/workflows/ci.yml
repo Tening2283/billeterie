@@ -16,7 +16,7 @@ jobs:
     # Utilisés à partir des étapes 1 (PostgreSQL) et 3 (Redis) pour les tests d'intégration.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: billetterie
           POSTGRES_PASSWORD: billetterie
@@ -38,6 +38,11 @@ jobs:
       DATABASE_URL: postgresql://billetterie:billetterie@localhost:5432/billetterie_test
       DIRECT_URL: postgresql://billetterie:billetterie@localhost:5432/billetterie_test
       REDIS_URL: redis://localhost:6379
+      REDIS_KEY_PREFIX: 'test:'
+      # Secret de test uniquement, sans valeur en dehors de la CI.
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+      TICKET_SECRET: ci-only-ticket-secret-not-used-anywhere-else-987
+      BCRYPT_COST: 4
 
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +63,8 @@ jobs:
       - name: Types
         run: npm run typecheck
 
-      # Étape 1 : - run: npx prisma migrate deploy -w @billetterie/api
+      - name: Migrations
+        run: npm run db:deploy -w @billetterie/api
 
       - name: Tests et couverture (seuil 80 %)
         run: npm run test:coverage

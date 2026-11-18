@@ -34,6 +34,10 @@ const app = createApp({
   bcryptCost: env.BCRYPT_COST,
   holdTtlMs: env.HOLD_TTL_MS,
   onHoldCreated: (expiresAtMs) => sweeper.notifyHold(expiresAtMs),
+  // Test de charge (jamais en production, refusé par loadEnv) : des centaines de voyageurs simulés.
+  ...(env.DISABLE_RATE_LIMITS
+    ? { rateLimits: { register: 1e9, login: 1e9, demo: 1e9, holds: 1e9 } }
+    : {}),
   // Activation explicite (NODE_ENV=development écrit dans .env) : loadEnv met « development » par
   // défaut, donc un déploiement qui oublierait NODE_ENV exposerait /dev/ si on se fiait à env.NODE_ENV.
   devPage: process.env.NODE_ENV === 'development',
@@ -43,6 +47,7 @@ const server = attachSockets(app, io);
 
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'API démarrée');
+  if (env.DISABLE_RATE_LIMITS) logger.warn('Limitations de débit désactivées (test de charge)');
   sweeper.start();
 });
 

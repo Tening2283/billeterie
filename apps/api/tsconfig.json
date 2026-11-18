@@ -4,5 +4,13 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "test", "prisma", "vitest.config.ts", "tsup.config.ts", "prisma.config.ts"]
+  "include": [
+    "load",
+    "src",
+    "test",
+    "prisma",
+    "vitest.config.ts",
+    "tsup.config.ts",
+    "prisma.config.ts"
+  ]
 }

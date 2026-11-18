@@ -19,7 +19,16 @@ describe('loadEnv', () => {
       BCRYPT_COST: 12,
       REDIS_KEY_PREFIX: '',
       HOLD_TTL_MS: 600_000,
+      DISABLE_RATE_LIMITS: false,
     });
+  });
+
+  it('les limitations de débit ne peuvent être levées que hors production (test de charge)', () => {
+    expect(loadEnv({ ...base, DISABLE_RATE_LIMITS: 'true' }).DISABLE_RATE_LIMITS).toBe(true);
+    expect(() => loadEnv({ ...base, DISABLE_RATE_LIMITS: 'oui' })).toThrow(/DISABLE_RATE_LIMITS/);
+    expect(() => loadEnv({ ...base, NODE_ENV: 'production', DISABLE_RATE_LIMITS: 'true' })).toThrow(
+      /DISABLE_RATE_LIMITS: interdit en production/,
+    );
   });
 
   it('exige une URL Redis (redis:// ou rediss://), pas l’URL REST d’Upstash', () => {

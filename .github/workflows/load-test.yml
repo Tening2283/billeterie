@@ -1,0 +1,104 @@
+name: Test de charge
+
+# Lancé à la main (onglet Actions → Test de charge → Run workflow) : les chiffres du README viennent d'ici.
+# API, PostgreSQL et Redis tournent sur la même machine GitHub : on mesure l'appli, pas le réseau.
+on:
+  workflow_dispatch:
+    inputs:
+      requests:
+        description: 'POST /holds par manche, sur la même place (un voyageur différent chacun)'
+        default: '1000'
+      connections:
+        description: 'Connexions simultanées'
+        default: '100'
+      rounds:
+        description: 'Manches (une place différente chacune)'
+        default: '5'
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: billetterie
+          POSTGRES_PASSWORD: billetterie
+          POSTGRES_DB: billetterie_load
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U billetterie"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      NODE_ENV: test
+      # warn : pas un log par requête, qui fausserait la mesure.
+      LOG_LEVEL: warn
+      PORT: 3000
+      DATABASE_URL: postgresql://billetterie:billetterie@localhost:5432/billetterie_load
+      DIRECT_URL: postgresql://billetterie:billetterie@localhost:5432/billetterie_load
+      REDIS_URL: redis://localhost:6379
+      REDIS_KEY_PREFIX: 'load:'
+      # Secrets jetables, sans valeur hors de ce job.
+      JWT_SECRET: load-test-only-secret-not-used-anywhere-else-42
+      TICKET_SECRET: load-test-only-ticket-secret-not-used-elsewhere-7
+      BCRYPT_COST: 4
+      # Des centaines de voyageurs simulés depuis une seule IP (refusé par l'API en production).
+      DISABLE_RATE_LIMITS: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+
+      - name: Base de données (migrations + données de démo)
+        run: |
+          npm run db:deploy -w @billetterie/api
+          npm run db:seed -w @billetterie/api
+
+      - name: Build de l'API (comme en production)
+        run: npm run build -w @billetterie/api
+
+      - name: Démarrage de l'API
+        run: |
+          nohup node apps/api/dist/server.js > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/api/v1/health && exit 0
+            sleep 1
+          done
+          cat api.log
+          exit 1
+
+      - name: Test de charge
+        working-directory: apps/api
+        env:
+          LOAD_BASE_URL: http://localhost:3000
+          LOAD_REQUESTS: ${{ inputs.requests }}
+          LOAD_CONNECTIONS: ${{ inputs.connections }}
+          LOAD_ROUNDS: ${{ inputs.rounds }}
+          LOAD_SUMMARY_FILE: ${{ github.step_summary }}
+          LOAD_JSON_FILE: ${{ github.workspace }}/load-results.json
+        run: npm run load:test
+
+      - name: Résultats bruts et logs de l'API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test
+          path: |
+            load-results.json
+            api.log
+          if-no-files-found: ignore

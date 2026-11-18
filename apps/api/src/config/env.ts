@@ -26,6 +26,11 @@ const envSchema = z
     // Isole les environnements qui partagent une base Redis (dev:, test:, prod:).
     REDIS_KEY_PREFIX: z.string().default(''),
     HOLD_TTL_MS: z.coerce.number().int().positive().default(600_000),
+    // Test de charge uniquement : lève les limitations de débit. Interdit en production (voir plus bas).
+    DISABLE_RATE_LIMITS: z
+      .enum(['true', 'false'], { message: 'true ou false' })
+      .default('false')
+      .transform((value) => value === 'true'),
     CORS_ORIGINS: z
       .string()
       .default('http://localhost:5173')
@@ -40,6 +45,10 @@ const envSchema = z
   .refine((env) => env.TICKET_SECRET !== env.JWT_SECRET, {
     message: 'doit être différent de JWT_SECRET',
     path: ['TICKET_SECRET'],
+  })
+  .refine((env) => !(env.DISABLE_RATE_LIMITS && env.NODE_ENV === 'production'), {
+    message: 'interdit en production',
+    path: ['DISABLE_RATE_LIMITS'],
   })
   // La confirmation exige 5 s de blocage restant : en dessous, aucune réservation ne passerait.
   .refine((env) => env.HOLD_TTL_MS > MIN_REMAINING_HOLD_MS, {

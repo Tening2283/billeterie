@@ -2,14 +2,14 @@
 
 Réservation de places de cars interurbains (Dakar, Thiès, Saint-Louis…) sur un plan du car mis à jour en direct.
 
-> Projet en construction : étapes 0 (mise en place), 1 (données), 2 (comptes et rôles) et 3 (blocage en temps réel) terminées. Le README complet (démo, GIF, décisions techniques, chiffres mesurés) arrive à l'étape 7.
+> Projet en construction : étapes 0 à 5 terminées (mise en place, données, comptes, blocage en temps réel, réservation et billets, front). Le README complet (démo, GIF, décisions techniques, chiffres mesurés) arrive à l'étape 7.
 
 ## Structure
 
 ```
-apps/api/         Express 5, Prisma 7 + PostgreSQL ; bientôt Socket.io et Redis
-apps/web/         React 19 + Vite + Tailwind
-packages/shared/  Schémas Zod et types partagés (erreurs, trajets, plan du car)
+apps/api/         Express 5, Prisma 7 + PostgreSQL, Redis (ioredis), Socket.io
+apps/web/         React 19 + Vite + TanStack Query + React Router + Tailwind
+packages/shared/  Schémas Zod et types partagés (erreurs, trajets, plan du car, réservations)
 ```
 
 ## Lancer en local
@@ -25,8 +25,10 @@ npm run db:migrate -w @billetterie/api        # applique les migrations sur dev
 npm run db:seed -w @billetterie/api           # lignes, cars, comptes et départs de démo
 
 npm run dev:api   # http://localhost:3000/api/v1/health
-npm run dev:web   # http://localhost:5173
+npm run dev:web   # http://localhost:5173 (Vite relaie /api et /socket.io vers l'API)
 ```
+
+**Sur ton téléphone** (même Wi-Fi que le PC) : `npm run dev:web:phone`, puis ouvrir l'adresse « Network » affichée (`http://192.168.x.x:5173`). Windows peut demander d'autoriser Node dans le pare-feu. En http, la caméra du contrôle est bloquée par le navigateur : coller le code du billet (bouton « Code du billet » sous chaque QR) ; en production (https), le scan fonctionne.
 
 Voir le temps réel sans le front : ouvrir **http://localhost:3000/dev/** dans deux onglets (chacun crée son voyageur), cliquer une place dans l'un, elle change dans l'autre. Page servie uniquement hors production.
 

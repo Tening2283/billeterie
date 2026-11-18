@@ -12,6 +12,7 @@
   "scripts": {
     "dev:api": "npm run dev -w @billetterie/api",
     "dev:web": "npm run dev -w @billetterie/web",
+    "dev:web:phone": "npm run dev -w @billetterie/web -- --host",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

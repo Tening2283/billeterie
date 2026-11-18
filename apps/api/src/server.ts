@@ -8,6 +8,7 @@ import { attachSockets, createSocketServer } from './realtime/socket';
 import { createSocketSeatEvents } from './realtime/seat-events';
 import { createSweeper } from './services/sweeper';
 import { ensureUpcomingTrips } from './demo/ensure-upcoming-trips';
+import { seedDemoCatalog } from './demo/seed-catalog';
 
 // En local : lit apps/api/.env. En production : les variables viennent de l'hébergeur.
 loadEnvFile('.env');
@@ -45,13 +46,27 @@ server.listen(env.PORT, () => {
   sweeper.start();
 });
 
-// La démo doit toujours proposer des départs à venir, même après des semaines sans redéploiement.
-ensureUpcomingTrips(db)
-  .then((created) => logger.info({ created }, 'Départs à venir vérifiés'))
-  .catch((err: unknown) => logger.error({ err }, 'Impossible de créer les départs à venir'));
+/**
+ * La démo doit toujours proposer des départs à venir, même après des semaines sans redéploiement :
+ * catalogue (cars, lignes, comptes de démo) puis départs des 14 prochains jours. Idempotent.
+ * Au démarrage (une base de production neuve n'a pas besoin de seed manuel), puis toutes les 6 h.
+ */
+async function prepareDemoData(): Promise<void> {
+  try {
+    await seedDemoCatalog(db, { bcryptCost: env.BCRYPT_COST });
+    const created = await ensureUpcomingTrips(db);
+    logger.info({ created }, 'Données de démo vérifiées');
+  } catch (err) {
+    logger.error({ err }, 'Impossible de préparer les données de démo');
+  }
+}
+void prepareDemoData();
+const demoDataTimer = setInterval(() => void prepareDemoData(), 6 * 3_600_000);
+demoDataTimer.unref();
 
 function shutdown(signal: string): void {
   logger.info({ signal }, 'Arrêt en cours');
+  clearInterval(demoDataTimer);
   sweeper.stop();
   void io.close(() => {
     void Promise.allSettled([db.$disconnect(), redis.quit()]).finally(() => process.exit(0));

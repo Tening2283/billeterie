@@ -1,0 +1,37 @@
+# Blueprint Render : l'API (Express + Socket.io) en web service gratuit, à côté de Neon et Upstash (Frankfurt).
+# Les secrets ne sont pas ici : Render génère JWT_SECRET et TICKET_SECRET, et demande les autres à la création.
+services:
+  - type: web
+    name: billetterie-api
+    runtime: node
+    region: frankfurt
+    plan: free
+    branch: main
+    # Déployer seulement quand la CI GitHub est verte.
+    autoDeployTrigger: checksPass
+    # --include=dev : tsup et le CLI Prisma servent au build (NODE_ENV=production les exclurait).
+    buildCommand: npm ci --include=dev && npm run build -w @billetterie/api && npm run db:deploy -w @billetterie/api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: REDIS_KEY_PREFIX
+        value: 'prod:'
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TICKET_SECRET
+        generateValue: true
+      # Neon, branche production : URL « pooled » pour l'appli, URL directe pour les migrations.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      # Upstash : rediss://…
+      - key: REDIS_URL
+        sync: false
+      # URL du front Vercel (https://….vercel.app), plusieurs possibles séparées par des virgules.
+      - key: CORS_ORIGINS
+        sync: false

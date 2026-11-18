@@ -89,9 +89,9 @@ jobs:
           LOAD_REQUESTS: ${{ inputs.requests }}
           LOAD_CONNECTIONS: ${{ inputs.connections }}
           LOAD_ROUNDS: ${{ inputs.rounds }}
-          LOAD_SUMMARY_FILE: ${{ github.step_summary }}
           LOAD_JSON_FILE: ${{ github.workspace }}/load-results.json
-        run: npm run load:test
+        # Le résumé Markdown s'ajoute à la page « Summary » de l'exécution.
+        run: LOAD_SUMMARY_FILE="$GITHUB_STEP_SUMMARY" npm run load:test
 
       - name: Résultats bruts et logs de l'API
         if: always()

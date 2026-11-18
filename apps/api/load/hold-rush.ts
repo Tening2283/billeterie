@@ -190,7 +190,8 @@ async function runRound(
     seatNumber,
     holds: {
       total: result.requests.total,
-      requestsPerSecond: Math.round(result.requests.average),
+      // Total ÷ durée réelle : la moyenne par seconde d'autocannon est grossière sur une manche de 2-3 s.
+      requestsPerSecond: Math.round(result.requests.total / result.duration),
       latencyMs: {
         p50: result.latency.p50,
         p90: result.latency.p90,

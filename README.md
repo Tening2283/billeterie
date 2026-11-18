@@ -56,7 +56,19 @@ packages/shared/  Schémas Zod et types partagés par l'API et le front
 
 ### Test de charge : ruée sur une même place
 
-<!-- RÉSULTATS DU WORKFLOW « Test de charge » -->
+Mesuré le 18 novembre 2026 (commit `319b10f`), GitHub Actions `ubuntu-latest` : 2 vCPU AMD EPYC 7763, 8 Go, Node 22. Par manche : **1 000 voyageurs différents** demandent la même place via 100 connexions simultanées, puis tentent tous de confirmer.
+
+| Manche | p50    | p90    | p99    | max    | Réponses aux blocages | Confirmations      |
+| ------ | ------ | ------ | ------ | ------ | --------------------- | ------------------ |
+| 1      | 269 ms | 330 ms | 387 ms | 410 ms | 1 × 201, 999 × 409    | 1 × 201, 999 × 409 |
+| 2      | 217 ms | 269 ms | 441 ms | 445 ms | 1 × 201, 999 × 409    | 1 × 201, 999 × 409 |
+| 3      | 207 ms | 232 ms | 252 ms | 261 ms | 1 × 201, 999 × 409    | 1 × 201, 999 × 409 |
+| 4      | 192 ms | 214 ms | 260 ms | 273 ms | 1 × 201, 999 × 409    | 1 × 201, 999 × 409 |
+| 5      | 202 ms | 261 ms | 281 ms | 295 ms | 1 × 201, 999 × 409    | 1 × 201, 999 × 409 |
+
+- **Places vendues deux fois : 0** (requête SQL sur toute la base) ; 5 manches sur 5 avec exactement un gagnant du blocage et une vente.
+- **Latence p99 : 441 ms au pire** sous 100 connexions simultanées ; aucune erreur réseau, aucun délai dépassé.
+- **Débit : ~370 requêtes/s** en moyenne (chaque manche de 1 000 requêtes dure 2 à 3 s ; moyenne par seconde d'autocannon, donc approximative), pour une seule instance de l'API qui partage ses 2 vCPU avec PostgreSQL et Redis.
 
 **Méthode.** Workflow GitHub Actions [« Test de charge »](.github/workflows/load-test.yml), lancé à la main : l'API (build de production), PostgreSQL 18 et Redis 7 tournent sur la même machine GitHub, pour mesurer l'appli et non le réseau. Le script [`apps/api/load/hold-rush.ts`](apps/api/load/hold-rush.ts) crée des voyageurs, puis pour chaque manche :
 
